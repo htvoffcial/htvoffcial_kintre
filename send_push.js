@@ -1,3 +1,6 @@
+
+
+
 const webpush = require('web-push');
 const crypto = require('crypto');
 
@@ -11,39 +14,45 @@ if (!vapidPublicKey || !vapidPrivateKey || !pushSubscriptionJson) {
   process.exit(1);
 }
 
-const subscription = JSON.parse(pushSubscriptionJson);
+// 登録情報を読み込み（1台分でも複数台の配列でも対応できるように処理）
+let subscriptions = JSON.parse(pushSubscriptionJson);
+if (!Array.isArray(subscriptions)) {
+  subscriptions = [subscriptions];
+}
 
 webpush.setVapidDetails(
-  'mailto:admin@example.com',
+  'mailto:contact@haruharutv.jp',
   vapidPublicKey,
   vapidPrivateKey
 );
 
-// --- 1日1回ランダム時間判定ロジック ---
-// 今日の日付(YYYY-MM-DD) + 秘密鍵 のハッシュから、その日固有のランダムターゲット時間(0〜23)を判定
+// 日替わりのターゲット時刻判定
 const dateStr = new Date().toISOString().split('T')[0];
 const hash = crypto.createHash('sha256').update(dateStr + vapidPrivateKey).digest('hex');
-const targetHour = parseInt(hash.substring(0, 8), 16) % 24; // 0〜23の整数
+const targetHour = parseInt(hash.substring(0, 8), 16) % 24;
 const currentHour = new Date().getUTCHours();
 
-console.log(`[${dateStr}] 本日のターゲット時刻: ${targetHour}時 (UTC) / 現在時刻: ${currentHour}時 (UTC)`);
+console.log(`[${dateStr}] ターゲット時刻: ${targetHour}時 (UTC) / 現在: ${currentHour}時 (UTC)`);
 
-// 手動実行(workflow_dispatch) または ターゲット時刻に一致した時だけ送信
 if (isManual || currentHour === targetHour) {
-  console.log("--> 送信条件に一致しました。通知を送信します...");
-
-  const payload = JSON.stringify({
+  console.log(`--> ${subscriptions.length} 台の端末に通知を一斉送信します...`);
+ const payload = JSON.stringify({
     title: "体操のお時間です！",
     body: "音楽でも流しながら始めよう",
     url: "https://youtu.be/al3CoAGcrTE?si=1-vE7lpdVhE1WRBd&t=57"
   });
 
-  webpush.sendNotification(subscription, payload)
-    .then(res => console.log("送信成功 (ステータスコード):", res.statusCode))
-    .catch(err => {
-      console.error("送信失敗:", err);
-      process.exit(1);
-    });
+
+  // 全端末へ並列送信
+  const sendPromises = subscriptions.map((sub, index) => {
+    return webpush.sendNotification(sub, payload)
+      .then(res => console.log(`[端末 ${index + 1}] 送信成功 (${res.statusCode})`))
+      .catch(err => console.error(`[端末 ${index + 1}] 送信失敗:`, err.message));
+  });
+
+  Promise.all(sendPromises).then(() => {
+    console.log("すべての送信処理が完了しました。");
+  });
 } else {
   console.log("--> 本日の送信予定時刻ではないためスキップします。");
 }

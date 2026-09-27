@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PUSH_SUBSCRIPTION 整形ツール</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 750px;
+      margin: 30px auto;
+      padding: 0 20px;
+      background: #f6f8fa;
+      color: #24292f;
+    }
+    .card {
+      background: white;
+      border: 1px solid #d0d7de;
+      border-radius: 6px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    textarea {
+      width: 100%;
+      box-sizing: border-box;
+      font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, monospace;
+      font-size: 12px;
+      border: 1px solid #d0d7de;
+      border-radius: 6px;
+      padding: 10px;
+    }
+    button {
+      background: #1f883d;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    button:hover { background: #1a7f37; }
+    button.danger { background: #cf222e; margin-top: 0; }
+    button.danger:hover { background: #a40e26; }
+    .item-list { list-style: none; padding: 0; margin-top: 10px; }
+    .item-card {
+      background: #f6f8fa;
+      border: 1px solid #d0d7de;
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .endpoint-preview {
+      font-family: monospace;
+      font-size: 11px;
+      color: #57606a;
+      word-break: break-all;
+      max-width: 80%;
+    }
+    .error { color: #cf222e; font-size: 13px; margin-top: 6px; }
+  </style>
+</head>
+<body>
+
+  <h2>GitHub Secrets (PUSH_SUBSCRIPTION) JSON 整形・結合ツール</h2>
+  <p>スマホなどで発行されたJSONを1つずつ（または既存の配列JSON）追加すると、Secrets貼り付け用に自動整形します。</p>
+
+  <div class="card">
+    <h3>1. 端末の JSON を貼り付け</h3>
+    <textarea id="input-json" rows="4" placeholder='{"endpoint":"https://...", "keys":{...}}'></textarea>
+    <div id="error-msg" class="error"></div>
+    <button id="add-btn">リストに追加</button>
+  </div>
+
+  <div class="card">
+    <h3>2. 登録済み端末 (<span id="count">0</span> 台)</h3>
+    <ul id="device-list" class="item-list"></ul>
+  </div>
+
+  <div class="card">
+    <h3>3. GitHub Secrets用 出力結果</h3>
+    <textarea id="output-json" rows="8" readonly></textarea>
+    <button id="copy-btn">クリップボードにコピー</button>
+  </div>
+
+  <script>
+    let subscriptions = [];
+
+    const inputEl = document.getElementById('input-json');
+    const outputEl = document.getElementById('output-json');
+    const errorEl = document.getElementById('error-msg');
+    const listEl = document.getElementById('device-list');
+    const countEl = document.getElementById('count');
+
+    function updateOutput() {
+      outputEl.value = JSON.stringify(subscriptions, null, 2);
+      countEl.textContent = subscriptions.length;
+      renderList();
+    }
+
+    function renderList() {
+      listEl.innerHTML = '';
+      if (subscriptions.length === 0) {
+        listEl.innerHTML = '<li style="color:#57606a; font-size:13px;">まだ登録されていません。</li>';
+        return;
+      }
+
+      subscriptions.forEach((sub, index) => {
+        const li = document.createElement('li');
+        li.className = 'item-card';
+
+        const preview = document.createElement('div');
+        preview.className = 'endpoint-preview';
+        preview.innerHTML = `<strong>端末 ${index + 1}</strong><br>${sub.endpoint}`;
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'danger';
+        delBtn.textContent = '削除';
+        delBtn.onclick = () => {
+          subscriptions.splice(index, 1);
+          updateOutput();
+        };
+
+        li.appendChild(preview);
+        li.appendChild(delBtn);
+        listEl.appendChild(li);
+      });
+    }
+
+    document.getElementById('add-btn').addEventListener('click', () => {
+      errorEl.textContent = '';
+      const raw = inputEl.value.trim();
+      if (!raw) return;
+
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          // 配列が貼り付けられた場合は展開してマージ
+          parsed.forEach(item => {
+            if (item.endpoint && item.keys) addUnique(item);
+          });
+        } else if (parsed.endpoint && parsed.keys) {
+          addUnique(parsed);
+        } else {
+          throw new Error('有効な Subscription データ (endpoint, keys) ではありません。');
+        }
+        inputEl.value = '';
+        updateOutput();
+      } catch (e) {
+        errorEl.textContent = 'エラー: ' + e.message;
+      }
+    });
+
+    function addUnique(item) {
+      const exists = subscriptions.some(s => s.endpoint === item.endpoint);
+      if (!exists) {
+        subscriptions.push(item);
+      }
+    }
+
+    document.getElementById('copy-btn').addEventListener('click', () => {
+      if (subscriptions.length === 0) return;
+      outputEl.select();
+      navigator.clipboard.writeText(outputEl.value).then(() => {
+        alert('クリップボードにコピーしました！GitHub Secretsの PUSH_SUBSCRIPTION に貼り付けてください。');
+      });
+    });
+
+    updateOutput();
+  </script>
+</body>
+</html>
