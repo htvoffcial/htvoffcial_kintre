@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>体操 通知登録</title>
+  <link rel="manifest" href="manifest.json">
+</head>
+<body style="font-family: sans-serif; padding: 20px; text-align: center;">
+  <h2>体操 通知登録</h2>
+  <p>下のボタンを押して通知を許可してください。</p>
+  <button id="sub-btn" style="padding: 12px 24px; font-size: 16px;">通知を許可して登録</button>
+
+  <div id="output" style="margin-top: 20px; display: none;">
+    <p style="color: green; font-weight: bold;">登録成功！</p>
+    <p>以下のJSON文字列を全てコピーし、GitHubのリポジトリSecrets (<code>PUSH_SUBSCRIPTION</code>) に設定してください：</p>
+    <textarea id="sub-json" rows="8" style="width: 100%; max-width: 500px;" readonly></textarea>
+  </div>
+
+  <script>
+    const VAPID_PUBLIC_KEY = 'BKSDGqwyxnnynn_xdObF6Hl4a_mOxoGVRmzUCwdTNaVQBJCERzNtyHXhxRkUCB_A-zkLfbCCNd1sluAR3Qte7fQ';
+
+    function urlBase64ToUint8Array(base64String) {
+      const padding = '='.repeat((4 - base64String.length % 4) % 4);
+      const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
+      const rawData = window.atob(base64);
+      const outputArray = new Uint8Array(rawData.length);
+      for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+      }
+      return outputArray;
+    }
+
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      navigator.serviceWorker.register('sw.js');
+    }
+
+    document.getElementById('sub-btn').addEventListener('click', async () => {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+          alert('通知の許可が拒否されました');
+          return;
+        }
+
+        const sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+        });
+
+        document.getElementById('output').style.display = 'block';
+        document.getElementById('sub-json').value = JSON.stringify(sub);
+      } catch (err) {
+        alert('エラーが発生しました: ' + err.message);
+      }
+    });
+  </script>
+</body>
+</html>
