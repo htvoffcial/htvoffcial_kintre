@@ -33,7 +33,7 @@ if (isManual || currentHour === targetHour) {
   console.log("--> 送信条件に一致しました。通知を送信します...");
 
   const payload = JSON.stringify({
-    title: "体操のお時間です！,
+    title: "体操のお時間です！",
     body: "音楽でも流しながら始めよう",
     url: "https://youtu.be/al3CoAGcrTE?si=1-vE7lpdVhE1WRBd&t=57"
   });
